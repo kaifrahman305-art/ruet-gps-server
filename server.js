@@ -7,12 +7,13 @@ const net = require('net');
 const app = express();
 app.use(express.json());
 
-const HTTP_PORT = Number(process.env.HTTP_PORT || 3000);
+// Render/Railway like platforms usually provide PORT automatically
+const HTTP_PORT = Number(process.env.PORT || process.env.HTTP_PORT || 3000);
 const TCP_PORT = Number(process.env.TCP_PORT || 9000);
 const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
-  console.error('MONGO_URI is missing in .env');
+  console.error('MONGO_URI is missing in .env or environment variables');
   process.exit(1);
 }
 
@@ -50,10 +51,16 @@ const GpsPacket = mongoose.model('GpsPacket', gpsPacketSchema);
 
 // ===================== EXPRESS ROUTES =====================
 
+app.get('/', (req, res) => {
+  res.send('RUET GPS server is running');
+});
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     message: 'RUET GPS server is running',
+    httpPort: HTTP_PORT,
+    tcpPort: TCP_PORT,
   });
 });
 
@@ -97,9 +104,6 @@ const tcpServer = net.createServer((socket) => {
       });
 
       console.log('Saved raw packet to MongoDB');
-
-      // For now we are only receiving and saving raw GT06 data.
-      // Decoding will be added in the next version.
     } catch (error) {
       console.error('Error saving GPS packet:', error.message);
     }
@@ -121,10 +125,14 @@ async function startServer() {
     await mongoose.connect(MONGO_URI);
     console.log('MongoDB connected');
 
-    app.listen(HTTP_PORT, () => {
-      console.log(`HTTP API running on http://localhost:${HTTP_PORT}`);
+    // HTTP server for Render/browser/API
+    app.listen(HTTP_PORT, '0.0.0.0', () => {
+      console.log(`HTTP API running on port ${HTTP_PORT}`);
     });
 
+    // TCP server for GPS listener
+    // This may not work on Render Web Service for real GT06 TCP traffic,
+    // but it stays here for your full backend code.
     tcpServer.listen(TCP_PORT, '0.0.0.0', () => {
       console.log(`TCP GPS listener running on port ${TCP_PORT}`);
     });
